@@ -1,0 +1,115 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+Vagrant.configure("2") do |config|
+  config.vm.boot_timeout = 600
+  config.vm.box = "ubuntu/focal64"
+  config.vm.box_check_update = false
+
+  config.vm.base_mac = nil
+
+  config.vm.provision "shell", inline: <<-SHELL
+    # Set up package management
+    apt-get update
+    apt install -y apt-file
+    apt-file update
+    apt-get install -y apt-transport-https ca-certificates curl gnupg lsb-release
+    
+    # Docker
+    apt install -y docker.io containerd docker-compose socat conntrack
+    printf '{\n    "exec-opts": ["native.cgroupdriver=systemd"],\n' > /etc/docker/daemon.json
+    printf '    "log-driver": "json-file",\n    "log-opts": {\n' >> /etc/docker/daemon.json
+    printf '      "max-size": "100m"\n    },\n' >> /etc/docker/daemon.json
+    printf '    "storage-driver": "overlay2"\n}\n' >> /etc/docker/daemon.json
+    systemctl enable docker
+    systemctl daemon-reload
+    systemctl restart docker
+
+    # Kubernetes
+    curl -fsSLo /usr/share/keyrings/kubernetes-archive-keyring.gpg \
+                https://packages.cloud.google.com/apt/doc/apt-key.gpg
+    echo "deb [signed-by=/usr/share/keyrings/kubernetes-archive-keyring.gpg] https://apt.kubernetes.io/ kubernetes-xenial main" > /etc/apt/sources.list.d/kubernetes.list
+    apt-get update
+    apt-get install -y kubelet=1.20.10-00 kubeadm=1.20.10-00 kubectl=1.20.10-00
+    apt-mark hold kubelet kubeadm kubectl
+    systemctl enable kubelet
+    systemctl daemon-reload
+    systemctl start kubelet
+
+    # Networking
+    echo "br_netfilter" >> /etc/modules-load.d/k8s.conf
+    modprobe br_netfilter
+    echo "net.ipv4.ip_forward = 1" >> /etc/sysctl.d/90-k8s.conf
+    echo "net.bridge.bridge-nf-call-ip6tables = 1" >> /etc/sysctl.d/90-k8s.conf
+    echo "net.bridge.bridge-nf-call-iptables = 1" >> /etc/sysctl.d/90-k8s.conf
+    sysctl --system
+
+    echo "192.168.56.10 control.local control" >> /etc/hosts
+    echo "192.168.56.11 control1.local control1" >> /etc/hosts
+    echo "192.168.56.21 node1.local node1" >> /etc/hosts
+    echo "192.168.56.22 node2.local node2" >> /etc/hosts
+    echo "192.168.56.23 node3.local node3" >> /etc/hosts
+    SHELL
+
+  config.vm.define "control1" do |control1|
+    # Need to ensure each VM gets a NAT address (interface 1) and a host only
+    # network (interface 2) for Kubernetes operations.  We define the interface 2
+    control1.vm.network "private_network", ip: "192.168.56.11", name: "vboxnet0", hostname: true
+    control1.vm.hostname = "control1.local"
+
+    # Kubernetes API server
+    control1.vm.network "forwarded_port", guest: 443, host: 18443, host_ip: "127.0.0.1"
+    control1.vm.provider "virtualbox" do |vb|
+      vb.memory = "1024"
+      vb.cpus = 1
+      vb.customize ["modifyvm", :id, "--uart1", "0x3f8", "4"]
+      vb.customize ["modifyvm", :id, "--uartmode1", "tcpserver", "2101"]
+    end
+  end
+
+  config.vm.define "node1" do |node1|
+    # Need to ensure each VM gets a NAT address (interface 1) and a host only
+    # network (interface 2) for Kubernetes operations.  We define the interface 2
+    node1.vm.network "forwarded_port", guest: 10255, host: 61255, host_ip: "127.0.0.1"
+    node1.vm.network "private_network", ip: "192.168.56.21", name: "vboxnet0", hostname: true
+    node1.vm.hostname = "node1.local"
+
+    node1.vm.provider "virtualbox" do |vb|
+      vb.memory = "1024"
+      vb.cpus = 1
+      vb.customize ["modifyvm", :id, "--uart1", "0x3f8", "4"]
+      vb.customize ["modifyvm", :id, "--uartmode1", "tcpserver", "2111"]
+    end
+  end
+
+  config.vm.define "node2" do |node2|
+    # Need to ensure each VM gets a NAT address (interface 1) and a host only
+    # network (interface 2) for Kubernetes operations.  We define the interface 2
+    node2.vm.network "forwarded_port", guest: 10255, host: 62255, host_ip: "127.0.0.1"
+    node2.vm.network "private_network", ip: "192.168.56.22", name: "vboxnet0", hostname: true
+    node2.vm.hostname = "node2.local"
+
+    node2.vm.provider "virtualbox" do |vb|
+      vb.memory = "1024"
+      vb.cpus = 1
+      vb.customize ["modifyvm", :id, "--uart1", "0x3f8", "4"]
+      vb.customize ["modifyvm", :id, "--uartmode1", "tcpserver", "2112"]
+    end
+  end
+
+  config.vm.define "node3" do |node3|
+    # Need to ensure each VM gets a NAT address (interface 1) and a host only
+    # network (interface 2) for Kubernetes operations.  We define the interface 2
+    node3.vm.network "forwarded_port", guest: 10255, host: 63255, host_ip: "127.0.0.1"
+    node3.vm.network "private_network", ip: "192.168.56.23", name: "vboxnet0", hostname: true
+    node3.vm.hostname = "node3.local"
+
+    node3.vm.provider "virtualbox" do |vb|
+      vb.memory = "1024"
+      vb.cpus = 1
+      vb.customize ["modifyvm", :id, "--uart1", "0x3f8", "4"]
+      vb.customize ["modifyvm", :id, "--uartmode1", "tcpserver", "2113"]
+    end
+  end
+
+end
