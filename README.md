@@ -12,6 +12,14 @@ These files build the virtual machines in VirtualBox on your laptop and
 set up the pre-requisites for leveraging kubeadm to install/configure
 your cluster.
 
+## Requirements
+
+Tested on a MacBook Pro running Big Sur, with the following software
+installed via HomeBrew:
+
+- VirtualBox (tested with 6.1.22)
+- Vagrant (tested with 2.2.17)
+
 ## Caveat
 
 When I tested for the Certified Kubernetes Administrator exam, I was able
