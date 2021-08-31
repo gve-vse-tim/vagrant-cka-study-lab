@@ -35,9 +35,23 @@ will help:
 
 ![vboxnet0 Network Settings](./media/Create-Network-vboxnet0.png)
 
-If you have an existing vboxnet0 network or the 192.168.56.0/24 is already
-used by another network, you'll have to update the Vagrantfile entries
-for each VM to correct the VM network attachment, an example of which is:
+Or, if you prefer the convoluted CLI method for VirtualBox:
+
+```bash
+VBoxManage hostonlyif create
+NEW_INTF=$(VBoxManage list hostonlyifs | awk -F: '/^Name:/ { print $2; }' | sed -e 's/ *//' | tail -1)
+VBoxManage hostonlyif ipconfig ${NEW_INTF} --ip 192.168.56.1 --netmask 255.255.255.0
+VBoxManage dhcpserver add --interface=${NEW_INTF} \
+     --server-ip=192.168.56.2 --netmask=255.255.255.0 \
+     --lower-ip=192.168.56.129 --upper-ip=192.168.56.254 \
+     --enable
+echo "Newly created interface is ${NEW_INTF}"
+```
+
+In a new or unmodified VirtualBox environment, that new interface will be
+vboxnet0.  If you have an existing vboxnet0 network or the 192.168.56.0/24
+is already used by another network, you'll have to update the Vagrantfile
+entries for each VM to correct the VM network attachment, an example of which is:
 
 ```bash
 control1.vm.network "private_network", ip: "192.168.56.11", name: "vboxnet0", hostname: true
